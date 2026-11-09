@@ -7,7 +7,6 @@ import { Overview } from './pages/overview.js';
 import { Profiles } from './pages/profiles.js';
 import { Nodes } from './pages/nodes.js';
 import { Mixin } from './pages/mixin.js';
-import { ProxyPage } from './pages/proxy.js';
 import { Mesh } from './pages/mesh.js';
 import { Connections } from './pages/connections.js';
 import { Logs } from './pages/logs.js';
@@ -19,7 +18,6 @@ const pages = [
     { id: 'profiles', title: '订阅', Page: Profiles },
     { id: 'nodes', title: '节点', Page: Nodes },
     { id: 'mixin', title: '混入设置', Page: Mixin },
-    { id: 'proxy', title: '透明代理', Page: ProxyPage },
     { id: 'mesh', title: '喵窝', Page: Mesh },
     { id: 'connections', title: '连接', Page: Connections },
     { id: 'logs', title: '日志', Page: Logs },
@@ -64,34 +62,6 @@ function Tabs({ current, onPick }) {
         ${pages.map((p) => html`<button type="button" role="tab" aria-selected=${p.id == current}
             class=${'tabs__item' + (p.id == current ? ' is-active' : '')} onClick=${() => onPick(p.id)}>${p.title}</button>`)}
     </nav>`;
-}
-
-// 透明代理试用期：醒目的倒计时 +「保留设置」（到点没点，控制服务自动关掉透明代理）
-function TrialBanner({ trial }) {
-    const [now, setNow] = useState(Date.now());
-    useEffect(() => {
-        if (!trial?.pending) {
-            return;
-        }
-        const t = setInterval(() => setNow(Date.now()), 1000);
-        return () => clearInterval(t);
-    }, [trial?.pending]);
-    if (!trial?.pending) {
-        return null;
-    }
-    const left = Math.max(0, Math.round(trial.deadline - now / 1000));
-    const mmss = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
-    const keep = async () => {
-        await post('/proxy/keep');
-        update({ trial: { pending: false } });
-        toast('已保留透明代理设置');
-    };
-    return html`<div class="banner is-warn" role="alert">
-        <span class="banner__text">${left > 0
-            ? html`透明代理刚打开或改过：确认 NAS 与局域网都能正常上网后点「保留设置」，<span class="banner__count">${mmss}</span> 后没点会自动关掉透明代理。`
-            : '到时间了，正在自动关掉透明代理…'}</span>
-        ${left > 0 && html`<${Button} kind="primary" onClick=${keep}>保留设置<//>`}
-    </div>`;
 }
 
 function LoginScreen() {
@@ -184,7 +154,7 @@ function App() {
         }
     }, [ready]);
 
-    // 一键更新后应用中心会重启 MeowX：控制服务的版本号变成新版就刷新页面，换上新版的网页
+    // 容器换成新版后控制服务的版本号变了：刷新页面，换上新版的网页
     const version = store.status?.version;
     useEffect(() => {
         if (store.upgrading && version == store.upgrading.version) {
@@ -204,7 +174,7 @@ function App() {
             <${Logo} />
             <div>
                 <div class="top__title">MeowX</div>
-                <div class="top__sub">飞牛 NAS 版${store.status.version ? ' · ' + store.status.version : ''}${store.release?.has_update
+                <div class="top__sub">Docker 版${store.status.version ? ' · ' + store.status.version : ''}${store.release?.has_update
             && html` · <a href="#settings">有新版本 ${store.release.latest}</a>`}</div>
             </div>
             <div class="top__status"><${StatusPill} status=${store.status} /></div>
@@ -212,7 +182,6 @@ function App() {
         <div class="tabs-bar">
             <${Tabs} current=${current} onPick=${pick} />
             ${store.offline && html`<div class="banner is-error" style="margin:10px 0 0">连不上 MeowX 控制服务（容器可能在重启），正在重试…</div>`}
-            ${store.trial?.pending && html`<div style="margin-top:10px"><${TrialBanner} trial=${store.trial} /></div>`}
         </div>
         ${pages.filter((p) => visited.has(p.id)).map((p) => html`<main key=${p.id} hidden=${p.id != current}
             class=${p.id == current ? anim : ''} onAnimationEnd=${(e) => e.target == e.currentTarget && setAnim('')}>

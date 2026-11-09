@@ -1,2 +1,3 @@
 dist/
 .cache/
+docker/rootfs/

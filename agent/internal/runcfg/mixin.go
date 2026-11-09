@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/mmwx-group/meowx-fnos/agent/internal/store"
+	"github.com/Alumos/meowx-docker/agent/internal/store"
 	"gopkg.in/yaml.v3"
 )
 

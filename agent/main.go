@@ -1,4 +1,4 @@
-// meowx-agent：飞牛 NAS 版的控制服务（网页界面 + 管理内核 / 透明代理 / 喵窝），容器里的 PID 1。
+// meowx-agent：MeowX Docker 版的控制服务（网页界面 + 管理内核 / 喵窝），容器里的 PID 1。
 package main
 
 import (
@@ -12,10 +12,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mmwx-group/meowx-fnos/agent/internal/api"
-	"github.com/mmwx-group/meowx-fnos/agent/internal/app"
-	"github.com/mmwx-group/meowx-fnos/agent/internal/hijack"
-	"github.com/mmwx-group/meowx-fnos/agent/internal/update"
+	"github.com/Alumos/meowx-docker/agent/internal/api"
+	"github.com/Alumos/meowx-docker/agent/internal/app"
+	"github.com/Alumos/meowx-docker/agent/internal/update"
 )
 
 var version = "dev"
@@ -37,20 +36,13 @@ func main() {
 		log.Fatal(err)
 	}
 	a.Log.Add("agent", "MeowX "+version+" 启动")
-	// 检查更新 + 一键更新：MEOWX_HOST_DATA（数据目录在宿主上的路径）与应用中心的 socket 由 docker-compose 给
+	// 检查更新：读 GitHub Releases（MEOWX_UPDATE_REPO 可改成自己的仓库）
 	a.Update = &update.Updater{
-		Version: version, DataDir: a.DataDir,
-		FeedURL:     os.Getenv("MEOWX_UPDATE_FEED"), // 只给测试用，缺省是 dl.miaomiaowux.com 的发布清单
-		Socket:      envOr("MEOWX_APPCENTER_SOCK", update.DefaultSocket),
-		HostDataDir: os.Getenv("MEOWX_HOST_DATA"),
-		Client:      &http.Client{Timeout: 15 * time.Minute},
-		Log:         func(s string) { a.Log.Add("agent", s) },
+		Version: version, Repo: os.Getenv("MEOWX_UPDATE_REPO"),
+		Client: &http.Client{Timeout: 20 * time.Second},
+		Log:    func(s string) { a.Log.Add("agent", s) },
 	}
-	a.Update.Cleanup()
-	a.RecoverTrial()
-	a.TrialIfUnconfirmed() // 停着时改过透明代理、之后才开起来的（如改完就重启了容器）：这次启动先进试用期
-	hijack.CleanupLAN()    // 上次崩溃留下的规则
-	hijack.CleanupHost()
+	a.Mesh.Cleanup() // 上次没收干净（容器被强杀）留下的防火墙规则
 
 	web, _ := fs.Sub(webFS, "web")
 	srv := &http.Server{

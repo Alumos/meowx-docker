@@ -1,0 +1,30 @@
+# MeowX Docker 版（UGOS Pro / 其它 x86 Linux NAS）
+#   代理端口 7890（HTTP + SOCKS5）、网页控制台 http://<NAS 的 IP>:7899
+# 用 host 网络：喵窝（tailscale）要在宿主上建网卡、加路由与防火墙规则；代理端口直接开在宿主上，不用映射。
+services:
+  meowx:
+    image: ghcr.io/alumos/meowx-docker:latest
+    container_name: meowx
+    network_mode: host
+    cap_add:
+      - NET_ADMIN   # 喵窝：建网卡、路由、防火墙
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - TZ=Asia/Shanghai
+      - MEOWX_UI_PORT=7899
+      # 喵窝的网卡名与 UDP 端口：缺省与系统自带的 Tailscale（tailscale0 / 41641）错开
+      - MEOWX_TS_DEVICE=meowx-ts
+      - MEOWX_TS_PORT=41642
+    volumes:
+      # 设置、订阅、主控账户、喵窝身份都在这里；升级、重建容器都不丢
+      - ./data:/data
+    restart: unless-stopped
+    # 停止时留时间收 tailscaled、撤防火墙规则（Docker 缺省 10 秒就强杀）
+    stop_grace_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

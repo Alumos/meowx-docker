@@ -107,7 +107,7 @@ type Sniffer struct {
 	SkipDomain  []string `json:"skip_domain"`
 }
 
-// Proxy：透明代理（同 OpenWrt 版的 proxy 段）。NAS 版的「本机」= NAS 自己，「局域网」= 旁路由。
+// Proxy：透明代理（同 OpenWrt 版的 proxy 段）。Docker 版不用：字段留着只为读飞牛版迁移过来的设置不报错，enabled 一律当 false。
 type Proxy struct {
 	Enabled        bool     `json:"enabled"`
 	TCPMode        string   `json:"tcp_mode"`        // tun / tproxy / redirect
@@ -150,9 +150,7 @@ func Defaults() Settings {
 			Mode:          "rule",
 			IPv6:          true,
 			AllowLAN:      true,
-			MixedPort:     7890,
-			RedirPort:     7891,
-			TProxyPort:    7892,
+			MixedPort:     7890, // Docker 版没有透明代理：redir / tproxy 端口缺省不开
 			Auth:          true,
 			Users:         []AuthUser{{Enabled: true, Username: "meowx"}},
 			SkipAuthLAN:   true,

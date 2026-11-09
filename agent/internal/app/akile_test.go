@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mmwx-group/meowx-fnos/agent/internal/store"
+	"github.com/Alumos/meowx-docker/agent/internal/store"
 )
 
 // AkileCDN 白名单：开着 + 有 Key + 有节点才算要上报；上一次的结果在控制服务启动时删掉（等同内存盘）；

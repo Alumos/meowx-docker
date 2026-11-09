@@ -1,7 +1,7 @@
 // Package mesh：喵窝（主控内置的组网，Tailscale 协议）。照 OpenWrt 版 mesh_cli.uc：
 // 主控说可用 → 申报要开放的局域网网段 → 没登录就向主控要一次性 key → tailscale up（--netfilter-mode=off）→ 自己写防火墙。
 //
-// 和 OpenWrt 版不同：tailscaled 在容器里由控制服务看管（内核网卡 tailscale0，状态在 /data/mesh）；防火墙见 firewall_linux.go。
+// 和 OpenWrt 版不同：tailscaled 在容器里由控制服务看管（内核网卡，缺省 meowx-ts，状态在 /data/mesh）；防火墙见 firewall_linux.go。
 package mesh
 
 import (
@@ -24,11 +24,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mmwx-group/meowx-fnos/agent/internal/core"
-	"github.com/mmwx-group/meowx-fnos/agent/internal/store"
+	"github.com/Alumos/meowx-docker/agent/internal/core"
+	"github.com/Alumos/meowx-docker/agent/internal/store"
 )
 
-const device = "tailscale0"
+// 喵窝的网卡名与 UDP 端口：缺省避开系统自带 Tailscale（UGOS / 群晖的 Tailscale 应用用 tailscale0 与 41641）
+var (
+	device = core.EnvOr("MEOWX_TS_DEVICE", "meowx-ts")
+	port   = core.EnvOr("MEOWX_TS_PORT", "41642")
+)
 
 // Site：一个开放出去的网段（原网段 → 在喵窝里用的地址；冲突时映射）
 type Site struct {
@@ -103,7 +107,7 @@ func (m *Manager) startDaemon() error {
 		"--statedir="+m.Dir,
 		"--socket="+m.socket(),
 		"--tun="+device,
-		"--port=41641")
+		"--port="+port)
 	cmd.Env = append(os.Environ(), "TS_NO_LOGS_NO_SUPPORT=true")
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -255,7 +259,7 @@ func (m *Manager) routerID(st *State) string {
 	if st.RouterID == "" {
 		var b [8]byte
 		_, _ = rand.Read(b[:])
-		st.RouterID = "fnos-" + hex.EncodeToString(b[:])
+		st.RouterID = core.EnvOr("MEOWX_MESH_ROUTER_PREFIX", "fnos") + "-" + hex.EncodeToString(b[:])
 	}
 	return st.RouterID
 }
@@ -442,6 +446,12 @@ func (m *Manager) Leave(ctx context.Context) (warning string) {
 	m.Log.Add("mesh", "已退出喵窝")
 	return warning
 }
+
+// Cleanup：启动时清掉上次没收干净的防火墙规则（容器被强杀时）
+func (m *Manager) Cleanup() { firewallRemove() }
+
+// Checks：喵窝要的系统能力（网页显示）
+func (m *Manager) Checks() Checks { return probe() }
 
 // Shutdown：容器停止时（不 tailscale down：下次起来直接接着用）
 func (m *Manager) Shutdown() {

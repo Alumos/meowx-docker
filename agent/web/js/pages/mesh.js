@@ -32,6 +32,17 @@ const formOf = (s) => ({
     hostname: s?.hostname ?? '',
 });
 
+function CheckRows({ c }) {
+    const ok = (good, yes, no) => html`<span class=${'badge' + (good ? '' : ' is-muted')}>${good ? yes : no}</span>`;
+    const where = { 'nftables': 'nftables', 'iptables-legacy': 'iptables-legacy', 'none': '没找到' };
+    return html`
+        <${Field} label="TUN 设备" desc=${c.tun ? '' : 'docker-compose 里要有 devices: /dev/net/tun'}>${ok(c.tun, '可用', '不可用')}<//>
+        <${Field} label="IP 转发" desc=${c.ip_forward ? '' : '开放局域网网段要用：宿主执行 sysctl -w net.ipv4.ip_forward=1'}>${ok(c.ip_forward, '已打开', '没打开')}<//>
+        <${Field} label="防火墙" desc=${c.nftables ? '' : '内核没有 nf_tables，改用 iptables-legacy'}>${ok(true, c.firewall, c.firewall)}<//>
+        <${Field} label="Docker 转发放行（DOCKER-USER）" desc="喵窝进来去局域网的包要在这里放行">${ok(c.docker_user != 'none', where[c.docker_user] ?? c.docker_user, '没找到（没装 Docker 时不需要）')}<//>
+        <${Field} label="喵窝网卡 / 端口" desc="与系统自带 Tailscale 错开；在 docker-compose 的 MEOWX_TS_DEVICE / MEOWX_TS_PORT 改"><span class="mono">${c.device} · UDP ${c.port}</span><//>`;
+}
+
 export function Mesh({ active, go }) {
     const { panel } = useStore();
     const [data, setData] = useState(null);       // { mesh: View, lan: [] }
@@ -174,7 +185,7 @@ export function Mesh({ active, go }) {
                 <${Switch} label="喵窝里的设备能访问 NAS 本身" checked=${form.host_access} onChange=${(on) => setF({ host_access: on })} />
             <//>
             <${Field} label="设备名" desc="在喵窝里显示的名字" wide>
-                <input class="input" placeholder=${v.hostname || 'fnos'} spellcheck="false" autocomplete="off"
+                <input class="input" placeholder=${v.hostname || 'meowx-nas'} spellcheck="false" autocomplete="off"
                     value=${form.hostname} onInput=${(e) => setF({ hostname: e.currentTarget.value })} />
             <//>
             <div class="card__actions" style="justify-content:flex-start;margin-top:8px">
@@ -203,6 +214,10 @@ export function Mesh({ active, go }) {
                 <span class="hint" style="flex:1;margin:0;min-width:220px">其它设备经喵窝访问开放的网段；网段已被别的设备占用时会映射到主控映射池里的一段。直连要用 UDP，两端都在严格 NAT 后面时经主控选定的中继转发（端到端加密）。</span>
                 ${(s.enabled || self?.ip) && html`<${Button} kind="danger" disabled=${applying} onClick=${() => setLeaving(true)}>退出喵窝<//>`}
             </div>
+        <//>`}
+
+        ${data?.checks && html`<${Card} title="系统检查" desc="喵窝在容器里要用到的宿主能力（docker-compose 里给的 host 网络、NET_ADMIN 与 /dev/net/tun）。" i=${4}>
+            <${CheckRows} c=${data.checks} />
         <//>`}
 
         ${leaving && html`<${Dialog} title="退出喵窝？" onClose=${() => setLeaving(false)} actions=${html`

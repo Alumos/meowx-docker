@@ -1,68 +1,47 @@
 // 设置 / 关于：版本、网页访问密码、订阅自动更新间隔、启用前检查配置
 import { html, useState, useEffect } from '../lib.js';
-import { get, post } from '../api.js';
-import { useStore, update, saveSettings, login, refreshStatus, refreshRelease, toast } from '../store.js';
+import { get } from '../api.js';
+import { useStore, saveSettings, login, refreshStatus, refreshRelease, toast } from '../store.js';
 import { Card, Field, Switch, NumberInput, Button, SaveBar, Logo, useSettingsForm } from '../ui.js';
 import { stripPeriod } from '../util.js';
 
-// 版本卡里的「检查更新 / 立即更新」：一键更新经飞牛应用中心原地升级（保留设置与订阅），用不了时给安装包下载地址
+// 版本卡里的「检查更新」：Docker 版不自己换镜像，有新版时给出在 NAS 上执行的更新命令与离线镜像包
 function UpdateRow() {
-    const { release, upgrading } = useStore();
-    const [, tick] = useState(0);
-    useEffect(() => {
-        if (!upgrading) {
-            return;
-        }
-        const t = setInterval(() => tick((n) => n + 1), 10000);
-        return () => clearInterval(t);
-    }, [upgrading]);
+    const { release } = useStore();
     const check = async () => {
         const r = await refreshRelease(true);
         if (r && !r.error && !r.has_update) {
             toast('已是最新版本');
         }
     };
-    const install = async () => {
-        if (!confirm(`更新到 ${release.latest}？更新时 MeowX 会重启一次，代理与喵窝中断约一两分钟，设置与订阅都保留。`)) {
-            return;
-        }
+    const copy = async (text) => {
         try {
-            const res = await post('/update');
-            update({ upgrading: { version: res.version, at: Date.now() } });
-        } catch (err) {
-            if (err.status === 0) {
-                // 请求被重启打断：多半已经在更新
-                update({ upgrading: { version: release.latest, at: Date.now() } });
-                return;
-            }
-            toast(`更新失败：${stripPeriod(err.message)}`, 'warn');
-            refreshRelease();
+            await navigator.clipboard.writeText(text);
+            toast('已复制');
+        } catch {
+            prompt('复制下面的命令：', text);
         }
     };
-    if (upgrading) {
-        const slow = Date.now() - upgrading.at > 10 * 60 * 1000;
-        return html`<p class="hint">正在更新到 ${upgrading.version}：飞牛应用中心会停掉 MeowX、换上新版再启动，完成后页面自动刷新。</p>
-            ${slow && html`<p class="error-text">等了很久还没更新好，请到飞牛「应用中心」看看 MeowX 的状态。</p>`}`;
-    }
     if (!release) {
         return html`<p class="hint">正在检查更新…</p>`;
     }
-    const last = release.last_error && html`<p class="error-text">上次一键更新失败：${stripPeriod(release.last_error)}</p>`;
     if (release.error) {
         return html`<div class="inline can-wrap"><span class="error-text">检查更新失败：${stripPeriod(release.error)}</span>
-            <${Button} small onClick=${check}>重新检查<//></div>${last}`;
+            <${Button} small onClick=${check}>重新检查<//></div>`;
     }
     if (!release.has_update) {
-        return html`<div class="inline can-wrap"><span class="muted">已是最新版本</span><${Button} small onClick=${check}>检查更新<//></div>${last}`;
+        return html`<div class="inline can-wrap"><span class="muted">已是最新版本</span><${Button} small onClick=${check}>检查更新<//></div>`;
     }
     return html`<div class="inline can-wrap">
             <span>新版本 <b>${release.latest}</b>${release.notes_url && html` · <a href=${release.notes_url} target="_blank" rel="noopener">更新内容</a>`}</span>
-            ${release.can_install
-            ? html`<${Button} small kind="primary" onClick=${install}>立即更新<//>`
-            : release.download_url && html`<a class="btn small" href=${release.download_url} target="_blank" rel="noopener">下载安装包</a>`}
+            ${release.download_url && html`<a class="btn small" href=${release.download_url} target="_blank" rel="noopener">下载离线镜像包</a>`}
         </div>
-        ${!release.can_install && release.reason && html`<p class="hint">${stripPeriod(release.reason)}。</p>`}
-        ${last}`;
+        <p class="hint">在 NAS 上 docker-compose.yaml 所在的目录执行（UGOS：Docker → 项目 → MeowX → 重新构建 / 拉取镜像也一样）：</p>
+        <div class="inline can-wrap">
+            <code class="mono">${release.command}</code>
+            <${Button} small onClick=${() => copy(release.command)}>复制<//>
+        </div>
+        <p class="hint">拉不到 ${release.image} 时：下载离线镜像包，在 Docker 的「镜像 → 导入」里导入，再重启项目。设置、订阅与喵窝身份都在数据目录里，更新不会丢。</p>`;
 }
 
 function PasswordCard() {
@@ -104,7 +83,7 @@ function PasswordCard() {
         toast('已清除访问密码');
     };
     return html`<${Card} title="网页访问密码" i=${1}
-        desc="设置后打开管理页面要先输入密码。飞牛自己的登录管不到这个端口：NAS 的端口开放到外网时一定要设。">
+        desc="设置后打开管理页面要先输入密码。NAS 系统自己的登录管不到这个端口：7899 端口开放到外网时一定要设。">
         <${Field} label="当前">${has == null ? '…' : has ? html`<span class="badge">已设置</span>` : html`<span class="badge is-muted">没有设置</span>`}<//>
         <form class="inline can-wrap" onSubmit=${(e) => e.preventDefault()}>
             <input class="input" type="password" autocomplete="new-password" placeholder=${has ? '新密码' : '设置密码'} value=${pw} onInput=${(e) => setPw(e.currentTarget.value)} />
@@ -140,7 +119,7 @@ export function SettingsPage({ active }) {
             <div class="account">
                 <${Logo} />
                 <div class="account__main">
-                    <div class="account__name">MeowX 飞牛 NAS 版</div>
+                    <div class="account__name">MeowX Docker 版</div>
                     <div class="account__host mono">控制服务 ${status?.version || '-'} · 内核 ${coreVersion || (running ? '…' : '没在运行')}</div>
                 </div>
             </div>

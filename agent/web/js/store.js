@@ -9,7 +9,6 @@ export const state = {
     profiles: null,    // { profiles: [], active }
     panel: null,       // 主控账户状态（panel status 原样）
     toasts: [],
-    trial: null,       // 透明代理试用：{ pending, deadline(秒) }，到点没点「保留设置」自动关
     dirty: new Set(),  // 有没保存修改的页签
     release: null,     // GET /api/update：有没有新版本
     upgrading: null,   // 一键更新已提交：{ version, at(毫秒) }，控制服务的版本号变成它就刷新页面
@@ -36,9 +35,6 @@ export async function refreshStatus() {
     try {
         const status = await get('/status');
         const patch = { status, offline: false, needLogin: !!status.need_login };
-        if (!status.need_login) {
-            patch.trial = await get('/proxy').catch(() => state.trial);
-        }
         update(patch);
         return status;
     } catch (err) {

@@ -7,25 +7,37 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"os"
+	"strings"
 
+	"github.com/Alumos/meowx-docker/agent/internal/store"
 	"github.com/google/nftables"
 	"github.com/google/nftables/binaryutil"
 	"github.com/google/nftables/expr"
-	"github.com/mmwx-group/meowx-fnos/agent/internal/store"
 	"golang.org/x/sys/unix"
 )
 
 // 喵窝的防火墙（同 OpenWrt 版 firewall_apply）：
 //   - 自己的表 inet meowx_mesh：喵窝进来去局域网的做源地址转换（局域网设备的回包回到 NAS）、映射段 1:1 改回原网段、
-//     「喵窝里的设备能不能访问 NAS 本身」；
+//     「喵窝里的设备能不能访问 NAS 本身」；内核没有 nf_tables 时改用 iptables-legacy 写同样的规则（firewall_ipt.go）。
 //   - Docker 把 IPv4 FORWARD 默认设成丢弃：在 Docker 留给用户的 DOCKER-USER 链里插两条放行（与 iptables 写出来的
-//     `-i tailscale0 -j ACCEPT` / `-o tailscale0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT` 同样的表达式，
-//     iptables-nft 认得），关掉时只删这两条。没有 DOCKER-USER（没装 Docker）时不需要。
+//     `-i <网卡> -j ACCEPT` / `-o <网卡> -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT` 同样的表达式，
+//     iptables-nft 认得），关掉时只删这两条。Docker 用的是 iptables-legacy 时 nft 里看不到 DOCKER-USER，
+//     就用 iptables-legacy 插到 legacy 的那条链里。没有 DOCKER-USER（没装 Docker）时不需要。
 
 const meshTable = "meowx_mesh"
 
 func firewallApply(s store.Mesh, sites []Site) error {
 	firewallRemove()
+	if err := nftApply(s, sites); err != nil {
+		if ierr := iptApply(s, sites); ierr != nil {
+			return fmt.Errorf("nftables：%v；iptables-legacy：%v", err, ierr)
+		}
+	}
+	return dockerUserAllow()
+}
+
+func nftApply(s store.Mesh, sites []Site) error {
 	c, err := nftables.New()
 	if err != nil {
 		return err
@@ -81,10 +93,12 @@ func firewallApply(s store.Mesh, sites []Site) error {
 	if err := c.Flush(); err != nil {
 		return fmt.Errorf("下发喵窝的 nftables 规则：%w", err)
 	}
-	return dockerUserAllow()
+	return nil
 }
 
 func firewallRemove() {
+	iptRemove()
+	iptDockerUserRemove()
 	c, err := nftables.New()
 	if err != nil {
 		return
@@ -122,9 +136,15 @@ func dockerUser(c *nftables.Conn) *nftables.Chain {
 }
 
 func dockerUserAllow() error {
+	// Docker 用 iptables-legacy：DOCKER-USER 在 legacy 表里
+	if iptHasDockerUser() {
+		if err := iptDockerUserAllow(); err != nil {
+			return err
+		}
+	}
 	c, err := nftables.New()
 	if err != nil {
-		return err
+		return nil
 	}
 	chain := dockerUser(c)
 	if chain == nil {
@@ -183,4 +203,33 @@ func lastAddr(n *net.IPNet) []byte {
 	out := make([]byte, 4)
 	binary.BigEndian.PutUint32(out, ip|(0xffffffff>>ones))
 	return out
+}
+
+// ---------- 系统能力 ----------
+
+func probe() Checks {
+	ch := Checks{Device: device, Port: port, DockerUser: "none"}
+	if f, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0); err == nil {
+		ch.TUN = true
+		f.Close()
+	}
+	if data, err := os.ReadFile("/proc/sys/net/ipv4/ip_forward"); err == nil {
+		ch.IPForward = strings.TrimSpace(string(data)) == "1"
+	}
+	if c, err := nftables.New(); err == nil {
+		if _, err := c.ListTables(); err == nil {
+			ch.NFTables = true
+		}
+		if dockerUser(c) != nil {
+			ch.DockerUser = "nftables"
+		}
+	}
+	if ch.DockerUser == "none" && iptHasDockerUser() {
+		ch.DockerUser = "iptables-legacy"
+	}
+	ch.Firewall = "nftables"
+	if !ch.NFTables {
+		ch.Firewall = "iptables-legacy"
+	}
+	return ch
 }

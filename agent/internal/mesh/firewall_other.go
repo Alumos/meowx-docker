@@ -5,7 +5,7 @@ package mesh
 import (
 	"errors"
 
-	"github.com/mmwx-group/meowx-fnos/agent/internal/store"
+	"github.com/Alumos/meowx-docker/agent/internal/store"
 )
 
 func firewallApply(store.Mesh, []Site) error {
@@ -13,3 +13,5 @@ func firewallApply(store.Mesh, []Site) error {
 }
 
 func firewallRemove() {}
+
+func probe() Checks { return Checks{Device: device, Port: port, Firewall: "none", DockerUser: "none"} }

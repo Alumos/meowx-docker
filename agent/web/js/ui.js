@@ -180,7 +180,7 @@ export function describeStatus(status) {
     return { text: '已停止', cls: '' };
 }
 
-// 设置表单（混入 / 透明代理 / 设置页共用）：pick 取出这页管的那部分，place 放回整份设置。
+// 设置表单（混入 / 设置页共用）：pick 取出这页管的那部分，place 放回整份设置。
 // 表单载入时记一份 base，保存时与刚取的最新整份三方合并：别的页签同时改的（如概览里切了出站模式）不会被这页的旧值盖回去
 export function useSettingsForm(page, pick, place, active) {
     const [base, setBase] = useState(null);
@@ -224,9 +224,6 @@ export function useSettingsForm(page, pick, place, active) {
             const part = pick(res.settings);
             setBase(clone(part));
             setDraft(clone(part));
-            if (res.trial) {
-                update({ trial: res.trial });
-            }
             return res;
         },
     };

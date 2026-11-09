@@ -1,4 +1,4 @@
-module github.com/mmwx-group/meowx-fnos/agent
+module github.com/Alumos/meowx-docker/agent
 
 go 1.27.0
 

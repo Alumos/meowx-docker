@@ -44,9 +44,19 @@ func (p Paths) PanelEnv() []string {
 		"MEOWX_GGY_STATE=" + filepath.Join(p.Panel, "ggy.json"), // 没有 uci，GGY 设置存文件
 		"MEOWX_AKILE_STATE=" + p.AkileStatePath(),               // AkileCDN 白名单同样存文件
 		"MEOWX_AKILE_RESULT=" + p.AkileResultPath(),
-		"MEOWX_MESH_OS=fnos", // 喵窝入网时报给主控的系统 / 客户端
-		"MEOWX_MESH_CLIENT=meowx-fnos",
+		// 喵窝入网时报给主控的系统 / 客户端：主控认得的值是 fnos / openwrt 等，Docker 版缺省沿用飞牛版的，
+		// 主控那边支持别的值以后在 docker-compose 里改环境变量即可
+		"MEOWX_MESH_OS=" + EnvOr("MEOWX_MESH_OS", "fnos"),
+		"MEOWX_MESH_CLIENT=" + EnvOr("MEOWX_MESH_CLIENT", "meowx-fnos"),
 	}
+}
+
+// EnvOr：环境变量，没设就用缺省值
+func EnvOr(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 // Supervisor：一个内核进程

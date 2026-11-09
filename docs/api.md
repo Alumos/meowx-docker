@@ -1,6 +1,6 @@
 # 控制服务 API（网页界面用）
 
-全部在 `http://<NAS>:7899/api/…`，JSON。出错时 HTTP 4xx/5xx + `{"error": "中文原因"}`；
+全部在 `http://<NAS>:7899/api/…`（Docker 版），JSON。出错时 HTTP 4xx/5xx + `{"error": "中文原因"}`；
 有些操作「做成了但套用失败」时是 200 + `{"…": …, "error": "原因"}`，界面要把 `error` 显示出来。
 
 设置了网页密码（`settings.web.password`）时，除 `GET /api/status`、`POST /api/login` 外都要先登录（Cookie `meowx_session`），没登录回 401。
@@ -13,24 +13,20 @@
 | POST | `/api/login` | `{password}` → 设 Cookie |
 | POST | `/api/service` | `{action: "start"\|"stop"\|"restart"}`；start / stop 会改开关并存盘 |
 | GET | `/api/settings` | 整份设置（结构见 `agent/internal/store/settings.go`，JSON 键是 snake_case） |
-| PUT | `/api/settings` | 整份替换；默认存完立刻套用（`?apply=0` 只存）。回 `{settings, trial, error?}`；打开或改了透明代理时**套用之前**就进试用期，套用失败也会到点自动关 |
+| PUT | `/api/settings` | 整份替换；默认存完立刻套用（`?apply=0` 只存）。回 `{settings, error?}` |
 | GET | `/api/runconfig` | 当前在跑的运行配置（YAML 文本，只读看） |
 | GET | `/api/logs?after=<序号>&source=core\|agent` | 日志增量：`[{seq, time(ms), source, text}]`，界面每 2 秒拿一次 `after=上次最大 seq` |
 | DELETE | `/api/logs` | 清空 |
-| GET | `/api/update[?refresh=1]` | 检查新版本（`dl.miaomiaowux.com/meowx/latest.json` 的 `platforms.fnos`，缓存一小时）：`{current, latest, has_update, released_at, notes_url, download_url, size, can_install, reason, updating, last_error, error, checked_at}`；`can_install` 为假时 `reason` 说原因、界面给 `download_url` 让用户手动安装 |
-| POST | `/api/update` | 一键更新：下载新版安装包、校验 sha256、交给飞牛应用中心升级（`/rpc/v1` 的暂存 + update 任务），回 `{ok, version}`；之后应用中心停掉 MeowX、换上新版再启动，界面看 `/api/status` 的 `version` 变了就刷新 |
+| GET | `/api/update[?refresh=1]` | 检查新版本（GitHub Releases `Alumos/meowx-docker` 的 latest，缓存一小时）：`{current, latest, has_update, released_at, notes_url, download_url（离线镜像包）, size, can_install（恒为 false）, command（更新命令）, image, error, checked_at}` |
 
-## 透明代理
+## 宿主
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/proxy` | 试用状态 `{pending, deadline(秒)}`：打开或改了透明代理后进试用期，到 `deadline` 没确认就自动关 |
-| POST | `/api/proxy/keep` | 确认保留 |
-| GET | `/api/host` | 宿主机网卡 `{Physical: [{name, subnets, up}], Bridges: [...]}`，透明代理页选局域网入口用 |
+| GET | `/api/host` | `{interfaces: {Physical: [{name, subnets, up}], Bridges: [...]}, checks: Checks}` |
 
-`PUT /api/settings` 的回包多一个 `trial`（同 `GET /api/proxy`）。设置语义：`proxy.host_proxy` = NAS 本机、`container_proxy` = 其它容器（都走 TUN；
-`tcp_mode` 只对它们有效：`tun` 或 `redirect`），`lan_proxy` = 旁路由（局域网设备把网关指向 NAS，走 TPROXY，与 `tcp_mode` 无关），
-`lan_interfaces` 空 = 全部物理网卡。旁路由只代理 IPv4（第一版）。代理其它容器时，容器发布到外面的端口可能受影响，界面上要提示。
+Checks：`{tun, ip_forward, nftables, firewall（nftables / iptables-legacy）, docker_user（nftables / iptables-legacy / none）, device, port}`，喵窝页的「系统检查」用。
+Docker 版没有透明代理：`PUT /api/settings` 里的 `proxy.enabled` 一律存成 false，`/api/proxy*` 已去掉。
 
 ## 订阅
 
@@ -87,7 +83,7 @@ Profile：`{id, name, url?, info_url?, user_agent?, from_panel?, updated_at(秒)
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/mesh` | `{mesh: View, lan: ["10.10.1.0/24", …]}`；`lan` 是可开放的局域网网段候选 |
+| GET | `/api/mesh` | `{mesh: View, lan: ["10.10.1.0/24", …], checks: Checks}`；`lan` 是可开放的局域网网段候选 |
 | PUT | `/api/mesh` | 喵窝设置 `{enabled, force_map, host_access, networks, hostname}`：存好按设置入网 / 退出（最多一两分钟）。回 `{ok}` 或 `{error}` |
 | POST | `/api/mesh/leave` | 退出喵窝：主控里删这台设备、撤掉申报的网段、关开关。回 `{ok, warning?}` |
 

@@ -25,7 +25,7 @@ fi
 git -C "$SRC" clean -qfd
 for p in "$ROOT"/patches/core/*.patch; do [ -e "$p" ] || continue; git -C "$SRC" apply -p3 "$p"; done
 
-VERSION="meowx-fnos-$(git -C "$SRC" rev-parse --short HEAD)"
+VERSION="meowx-docker-$(git -C "$SRC" rev-parse --short HEAD)"
 (cd "$SRC" && CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" go build -trimpath \
     -tags with_gvisor,no_easytier,no_tailscale,no_zerotier \
     -ldflags "-s -w -X github.com/metacubex/mihomo/constant.Version=$VERSION" \

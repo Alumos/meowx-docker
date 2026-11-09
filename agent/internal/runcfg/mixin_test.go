@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mmwx-group/meowx-fnos/agent/internal/store"
+	"github.com/Alumos/meowx-docker/agent/internal/store"
 	"gopkg.in/yaml.v3"
 )
 
@@ -68,8 +68,12 @@ func TestMixinOverridesAndKeeps(t *testing.T) {
 	if _, ok := cfg["socks-port"]; ok {
 		t.Fatalf("订阅的 SOCKS 端口应当去掉：%v", cfg["socks-port"])
 	}
-	if cfg["redir-port"] != 7891 || cfg["tproxy-port"] != 7892 {
-		t.Fatalf("设置里的端口没写上：%v %v", cfg["redir-port"], cfg["tproxy-port"])
+	// Docker 版缺省不开 redir / tproxy 端口（没有透明代理）
+	if _, ok := cfg["redir-port"]; ok {
+		t.Fatalf("redir 端口缺省不该开：%v", cfg["redir-port"])
+	}
+	if _, ok := cfg["tproxy-port"]; ok {
+		t.Fatalf("tproxy 端口缺省不该开：%v", cfg["tproxy-port"])
 	}
 	// YAML 锚点展开后节点仍在
 	if len(cfg["proxies"].([]any)) != 1 {

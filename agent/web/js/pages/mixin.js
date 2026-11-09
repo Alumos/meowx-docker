@@ -78,8 +78,6 @@ export function Mixin({ active }) {
             <${Field} label="混合端口" wide><${NumberInput} ...${b('mixed_port')} max="65535" placeholder="不开" /><//>
             <${Field} label="HTTP 端口" wide><${NumberInput} ...${b('http_port')} max="65535" placeholder="不开" /><//>
             <${Field} label="SOCKS 端口" wide><${NumberInput} ...${b('socks_port')} max="65535" placeholder="不开" /><//>
-            <${Field} label="Redirect 端口" wide><${NumberInput} ...${b('redir_port')} max="65535" placeholder="不开" /><//>
-            <${Field} label="TPROXY 端口" desc="透明代理的旁路由（局域网设备）走这个端口，开旁路由时不能留空" wide><${NumberInput} ...${b('tproxy_port')} max="65535" placeholder="不开" /><//>
             <${Field} label="代理端口要密码" desc="打开后连代理端口要用下面的账号密码">${onOff(b('authentication'), '代理端口要密码')}<//>
             ${v('authentication') && html`
                 <${Field} label="局域网与本机免密" desc="只有从外网（经路由器端口转发）连进来的要密码">${onOff(b('skip_auth_lan'), '局域网与本机免密')}<//>
@@ -92,18 +90,9 @@ export function Mixin({ active }) {
                         <input class="input grow mono" placeholder="密码" spellcheck="false" autocomplete="off" value=${u.password} onInput=${(e) => set({ password: e.currentTarget.value })} />`} />`}
         <//>
 
-        <${Card} title="TUN" desc="透明代理里「NAS 本机 / 其它容器」走内核 TUN 时用的参数；留空用缺省值。" i=${2}>
-            <${Field} label="设备名称" wide><${TextInput} ...${b('tun.device')} placeholder="meowx" /><//>
-            <${Field} label="栈" wide>
-                <${Select} ...${b('tun.stack')} options=${[['', '缺省（Mixed）'], ['system', 'System'], ['gvisor', 'gVisor'], ['mixed', 'Mixed']]} />
-            <//>
-            <${Field} label="最大传输单元（MTU）" wide><${NumberInput} ...${b('tun.mtu')} placeholder="缺省" /><//>
-            <${Field} label="DNS 劫持" desc="一行一个；留空用 tcp://any:53 与 udp://any:53" wide top><${ListInput} ...${b('tun.dns_hijack')} rows=${2} placeholder="udp://any:53" /><//>
-        <//>
-
         <${Card} title="DNS" i=${3}>
             <${Field} label="启用">${onOff(b('dns.enabled'), '启用 DNS')}<//>
-            <${Field} label="DNS 监听" desc="透明代理劫持的 DNS 交给这里" wide><${TextInput} ...${b('dns.listen')} mono placeholder="[::]:1053" /><//>
+            <${Field} label="DNS 监听" desc="内核 DNS 服务的监听地址（NAS 本机可以把 DNS 指到这里）；留空 = 不监听" wide><${TextInput} ...${b('dns.listen')} mono placeholder="[::]:1053" /><//>
             <${Field} label="IPv6" desc="DNS 应答里给 IPv6 地址（AAAA）">${onOff(b('dns.ipv6'), 'DNS IPv6')}<//>
             <${Field} label="DNS 模式" wide>
                 <${Select} ...${b('dns.mode')} options=${[['', '不修改'], ['fake-ip', 'Fake-IP'], ['redir-host', 'Redir-Host']]} />
